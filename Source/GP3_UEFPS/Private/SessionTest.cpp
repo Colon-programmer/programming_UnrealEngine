@@ -18,8 +18,8 @@ void ASessionTest::BeginPlay()
 	Super::BeginPlay();
 	if (auto* Sub = GetGameInstance()->GetSubsystem<USessionSubsystem>())
 	{
-		Sub->CreateLanSession(
-			/*PublicConnections=*/3);
+		// Sub->CreateLanSession(3);
+		Sub->FindLanSessions(20);
 	}
 }
 

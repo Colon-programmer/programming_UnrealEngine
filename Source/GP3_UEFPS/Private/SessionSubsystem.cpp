@@ -78,4 +78,53 @@ void USessionSubsystem::CreateLanSession(int32 PublicConnections)
             true, true, FColor::Red, 4.f, TEXT("None"));
     }
 
+    void USessionSubsystem::FindLanSessions(int32 MaxResults)
+    {
+        if (!EnsureOnline()) return;
+
+        // 検索条件を作る
+        LastSearch = MakeShared<FOnlineSessionSearch>();
+        LastSearch->bIsLanQuery = true;               // LAN に限定
+        LastSearch->MaxSearchResults = FMath::Clamp(MaxResults, 1, 2000);
+        LastSearch->QuerySettings.Set(SEARCH_PRESENCE, false, EOnlineComparisonOp::Equals);
+
+        ClearDelegates();
+        OnFindHandle = Session->AddOnFindSessionsCompleteDelegate_Handle(
+            FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindComplete));
+
+        const bool bIssued = Session->FindSessions(/*LocalUserNum=*/0, LastSearch.ToSharedRef());
+        if (!bIssued)
+        {
+            UE_LOG(LogTemp, Error, TEXT("FindSessions: immediate failure"));
+            LastRows.Reset();
+            OnFindFinished.Broadcast(LastRows);
+        }
+    }
+
+    void USessionSubsystem::OnFindComplete(bool bOk)
+    {
+        LastRows.Reset();
+
+        if (bOk && LastSearch.IsValid())
+        {
+            int32 Index = 0;
+            for (const auto& R : LastSearch->SearchResults)
+            {
+                FFoundSessionRow Row;
+                Row.DisplayName = R.Session.OwningUserName; // 表示名（UIの部屋名に使う）
+                Row.PingMs = R.PingInMs;
+                Row.OpenConnections = R.Session.NumOpenPublicConnections;
+                Row.MaxConnections = R.Session.SessionSettings.NumPublicConnections;
+                Row.SearchIndex = Index++;
+                LastRows.Add(Row);
+            }
+        }
+
+        OnFindFinished.Broadcast(LastRows);
+        ClearDelegates();
+
+        UKismetSystemLibrary::PrintString(this, "OnFindComplete: Success!! :" + Row.DisplayName,
+            true, true, FColor::Yellow, 4.f, TEXT("None"));
+    }
+
 }
